@@ -24,10 +24,10 @@
     exit(-1);                                                                  \
   }
 
-#define ROS_GET_OPTIONAL_PARAM(X, Y, DEFAULT_VALUE)                            \
-  if (nh.getParam(X, Y) == false) {                                            \
-    Y = DEFAULT_VALUE;                                                         \
-  }
+
+enum image_type { ir= 0, depth = 1 ,rgb = 2};
+
+
 
 static inline uint64_t str2ts(const std::string &s) {
   uint64_t ts = 0;
@@ -48,54 +48,62 @@ static inline uint64_t str2ts(const std::string &s) {
 }
 
 static cv::Mat frame2cvmat(const rs2::frame &frame, const int width,
-                           const int height) {
-  const cv::Size size(width, height);
-  const auto format = CV_8UC1;
-  const auto stride = cv::Mat::AUTO_STEP;
-  const cv::Mat cv_frame(size, format, (void *)frame.get_data(), stride);
-  return cv_frame;
+                           const int height,const image_type img_type)
+{
+    const cv::Size size(width, height);
+    const auto stride = cv::Mat::AUTO_STEP;
+    if(img_type == image_type::ir)
+        return cv::Mat(size, CV_8UC1, (void *)frame.get_data(), stride);
+    else if(img_type == image_type::depth)
+        return cv::Mat(size, CV_16U, (void *)frame.get_data(), stride);
+    else if(img_type == image_type::rgb)
+        return cv::Mat(size, CV_8UC3, (void *)frame.get_data(), stride);
 }
 
+//计算正确的图片时间戳
 static uint64_t vframe2ts(const rs2::video_frame &vf) {
-  // Calculate half of the exposure time
-  // -- Frame metadata timestamp
-  const auto frame_meta_key = RS2_FRAME_METADATA_FRAME_TIMESTAMP;
-  const auto frame_ts_us = vf.get_frame_metadata(frame_meta_key);
-  const auto frame_ts_ns = static_cast<uint64_t>(frame_ts_us) * 1000;
-  // -- Sensor metadata timestamp
-  const auto sensor_meta_key = RS2_FRAME_METADATA_SENSOR_TIMESTAMP;
-  const auto sensor_ts_us = vf.get_frame_metadata(sensor_meta_key);
-  const auto sensor_ts_ns = static_cast<uint64_t>(sensor_ts_us) * 1000;
-  // -- Half exposure time
-  const auto half_exposure_time_ns = frame_ts_ns - sensor_ts_ns;
+    // -- 图片meta时间戳
+    const auto frame_meta_key = RS2_FRAME_METADATA_FRAME_TIMESTAMP;
+    const auto frame_ts_us = vf.get_frame_metadata(frame_meta_key);
+    const auto frame_ts_ns = static_cast<uint64_t>(frame_ts_us) * 1000;
+    // -- imu的打戳时间
+    const auto sensor_meta_key = RS2_FRAME_METADATA_SENSOR_TIMESTAMP;
+    const auto sensor_ts_us = vf.get_frame_metadata(sensor_meta_key);
+    const auto sensor_ts_ns = static_cast<uint64_t>(sensor_ts_us) * 1000;
+    // -- 一半的曝光时间
+    const auto half_exposure_time_ns = frame_ts_ns - sensor_ts_ns;
 
-  // Calculate corrected timestamp
-  const auto ts_ms = vf.get_timestamp();
-  const auto ts_ns = str2ts(std::to_string(ts_ms));
-  const auto ts_corrected_ns = ts_ns - half_exposure_time_ns;
+    // 图片的正确时间戳
+    const auto ts_ms = vf.get_timestamp();//这个是图片的
+    const auto ts_ns = str2ts(std::to_string(ts_ms));
+    const auto ts_corrected_ns = ts_ns - half_exposure_time_ns;
 
-  return static_cast<uint64_t>(ts_corrected_ns);
+    return static_cast<uint64_t>(ts_corrected_ns);
 }
 
+
+
+//创建图片消息
 static sensor_msgs::ImagePtr create_image_msg(const rs2::video_frame &vf,
-                                              const std::string &frame_id) {
-  // Form msg stamp
-  const uint64_t ts_ns = vframe2ts(vf);
-  ros::Time msg_stamp;
-  msg_stamp.fromNSec(ts_ns);
+                                              const std::string &frame_id,const image_type img_type)
+{
+    const uint64_t ts_ns = vframe2ts(vf);
+    ros::Time msg_stamp;
+    msg_stamp.fromNSec(ts_ns);
 
-  // Form msg header
-  std_msgs::Header header;
-  header.frame_id = frame_id;
-  header.stamp = msg_stamp;
+    std_msgs::Header header;
+    header.frame_id = frame_id;
+    header.stamp = msg_stamp;
 
-  // Image message
-  const int width = vf.get_width();
-  const int height = vf.get_height();
-  cv::Mat cv_frame = frame2cvmat(vf, width, height);
-  const auto msg = cv_bridge::CvImage(header, "mono8", cv_frame).toImageMsg();
-
-  return msg;
+    const int width = vf.get_width();
+    const int height = vf.get_height();
+    cv::Mat cv_frame = frame2cvmat(vf, width, height,img_type);
+    if(img_type == image_type::ir)
+        return cv_bridge::CvImage(header, "mono8", cv_frame).toImageMsg();
+    else if(img_type == image_type::depth)
+        return cv_bridge::CvImage(header, "mono16", cv_frame).toImageMsg();
+    else if(img_type == image_type::rgb)
+        return cv_bridge::CvImage(header, "rgb8", cv_frame).toImageMsg();
 }
 
 static geometry_msgs::Vector3Stamped

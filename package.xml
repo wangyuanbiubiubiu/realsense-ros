@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>rs4se</name>
+  <name>myrealsense</name>
   <version>0.0.1</version>
   <description>rs4vio</description>
   <maintainer email="christopher.choi@ic.ac.uk">Chris Choi</maintainer>

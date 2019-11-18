@@ -17,6 +17,8 @@ bin
 obj
 tags
 build
+.idea/
+cmake-build-debug/
 
 # matlab
 *.mat

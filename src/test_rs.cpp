@@ -23,7 +23,7 @@ int test_rs2_get_sensors() {
 
 int test_rs2_motion_module() {
   rs2::device device = rs2_connect();
-  rs_motion_module_t motion{device};
+  rs_IMU_module_t motion{device};
 
   motion.listStreamProfiles();
   motion.setStreamProfiles(250, 400);
