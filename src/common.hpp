@@ -62,21 +62,41 @@ static cv::Mat frame2cvmat(const rs2::frame &frame, const int width,
 
 //计算正确的图片时间戳
 static uint64_t vframe2ts(const rs2::video_frame &vf) {
-    // -- 图片meta时间戳
+    // -- 相机数据读出和发送开始的设备时间
     const auto frame_meta_key = RS2_FRAME_METADATA_FRAME_TIMESTAMP;
     const auto frame_ts_us = vf.get_frame_metadata(frame_meta_key);
     const auto frame_ts_ns = static_cast<uint64_t>(frame_ts_us) * 1000;
-    // -- imu的打戳时间
+    // -- 相机曝光到一半的设备时间
     const auto sensor_meta_key = RS2_FRAME_METADATA_SENSOR_TIMESTAMP;
     const auto sensor_ts_us = vf.get_frame_metadata(sensor_meta_key);
     const auto sensor_ts_ns = static_cast<uint64_t>(sensor_ts_us) * 1000;
-    // -- 一半的曝光时间
-    const auto half_exposure_time_ns = frame_ts_ns - sensor_ts_ns;
+//
+//    const auto BACKEND_meta_key = RS2_FRAME_METADATA_BACKEND_TIMESTAMP;
+//    const auto BACKEND_ts_us = vf.get_frame_metadata(BACKEND_meta_key);
+//    const auto BACKEND_ts_ns = static_cast<uint64_t>(BACKEND_ts_us) * 1000;
+//
+//    const auto ARRIVAL_meta_key = RS2_FRAME_METADATA_TIME_OF_ARRIVAL;
+//    const auto ARRIVAL_ts_us = vf.get_frame_metadata(ARRIVAL_meta_key);
+//    const auto ARRIVAL_ts_ns = static_cast<uint64_t>(ARRIVAL_ts_us) * 1000;
+//
+//    std::cout.flags(std::ios::fixed);
+//    std::cout.precision(11); //设置输出精度
 
+    // -- 相对于捕获开始
+    const auto delay_sensor_to_frame = frame_ts_ns - sensor_ts_ns;
+//    std::cout<<"frame_ts_ns:"<<frame_ts_ns<<std::endl<<"sensor_ts_ns:"<<sensor_ts_ns<<std::endl
+//             <<"frame_ts_ns - sensor_ts_ns:"<<delay_sensor_to_frame<<std::endl
+//             <<"BACKEND_ts_ns:"<<BACKEND_ts_ns<<std::endl<<"ARRIVAL_ts_ns:"<<ARRIVAL_ts_ns<<std::endl
+//             <<"ARRIVAL_ts_ns - BACKEND_ts_ns:"<<ARRIVAL_ts_ns - BACKEND_ts_ns<<std::endl;
     // 图片的正确时间戳
     const auto ts_ms = vf.get_timestamp();//这个是图片的
     const auto ts_ns = str2ts(std::to_string(ts_ms));
-    const auto ts_corrected_ns = ts_ns - half_exposure_time_ns;
+//    const auto rostime_ns = ros::Time::now().sec*1e9 + ros::Time::now().nsec;
+//    std::cout<<"ts_ns:"<<ts_ns<<std::endl;
+//    std::cout.precision(0); //设置输出精度
+//    std::cout<<"ros::Time::now():"<<rostime_ns<<std::endl
+//    <<"ros::Time::now() - ts_ns:"<<rostime_ns - ts_ns<<std::endl;
+    const auto ts_corrected_ns = ts_ns - delay_sensor_to_frame;
 
     return static_cast<uint64_t>(ts_corrected_ns);
 }
@@ -101,25 +121,22 @@ static sensor_msgs::ImagePtr create_image_msg(const rs2::video_frame &vf,
     if(img_type == image_type::ir)
         return cv_bridge::CvImage(header, "mono8", cv_frame).toImageMsg();
     else if(img_type == image_type::depth)
-        return cv_bridge::CvImage(header, "mono16", cv_frame).toImageMsg();
+        return cv_bridge::CvImage(header, "16UC1", cv_frame).toImageMsg();
     else if(img_type == image_type::rgb)
         return cv_bridge::CvImage(header, "rgb8", cv_frame).toImageMsg();
 }
 
 static geometry_msgs::Vector3Stamped
 create_vec3_msg(const rs2::motion_frame &f, const std::string &frame_id) {
-  // Form msg stamp
   double ts_s = f.get_timestamp() * 1e-3;
   ros::Time stamp;
   stamp.fromSec(ts_s);
   // printf("[%s]: %.9f\n", frame_id.c_str(), ts_s);
 
-  // Form msg header
   std_msgs::Header header;
   header.frame_id = frame_id;
   header.stamp = stamp;
 
-  // Form msg
   const rs2_vector data = f.get_motion_data();
   geometry_msgs::Vector3Stamped msg;
   msg.header = header;
@@ -149,7 +166,6 @@ static sensor_msgs::Imu create_imu_msg(const double ts,
 
 static void debug_imshow(const cv::Mat &frame_left,
                          const cv::Mat &frame_right) {
-  // Display in a GUI
   cv::Mat frame;
   cv::hconcat(frame_left, frame_right, frame);
   cv::namedWindow("Stereo Module", cv::WINDOW_AUTOSIZE);

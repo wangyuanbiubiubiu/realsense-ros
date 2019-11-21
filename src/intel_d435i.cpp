@@ -41,22 +41,18 @@ struct intel_d435i_node_t {
   rs_imu_module_config_t imu_config;//imu的配置文件
 
   intel_d435i_node_t(int argc, char **argv) {
-    // Parse args
     std::string node_name;
     for (int i = 1; i < argc; i++) {
       std::string arg(argv[i]);
 
-      // ros node name
       if (arg.find("__name:=") != std::string::npos) {
         node_name = arg.substr(8);
       }
     }
 
-    // Setup ros node
     ros::init(argc, argv, argv[0]);
     ros::NodeHandle nh;
 
-    // ROS params
     const std::string ns = "realsense";
     ROS_GET_PARAM(ns + "/global_time", global_time);//默认为true
     ROS_GET_PARAM(ns + "/sync_size", cam_config.sync_size);//30
@@ -98,8 +94,6 @@ static void rgb_handler(const rs2::frameset &fs,
     //创建消息
     const auto rgb_msg = create_image_msg(rgb_img, "/camera/color/image_raw",image_type::rgb);
 
-
-    // Publish image messages
     node.camrgb_pub.publish(rgb_msg);
 }
 
@@ -125,12 +119,10 @@ static void stereo_handler(const rs2::frameset &fs,
   const auto depth_msg = create_image_msg(depth, "/camera/depth/image_raw",image_type::depth);
 
 
-    // Publish image messages
   node.cam0_pub.publish(cam0_msg);
   node.cam1_pub.publish(cam1_msg);
   node.cam0_depth_pub.publish(depth_msg);
 
-  // Debug
   if (debug) {
     debug_imshow(frame_left, frame_right);
   }
@@ -199,7 +191,6 @@ int main(int argc, char **argv) {
         }
     });
 
-    // Join threads
     IMU_thread.join();
     stereo_thread.join();
     rgb_thread.join();

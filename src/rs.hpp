@@ -114,7 +114,6 @@ public:
       }
     }
 
-    // Check results
     if (accel_ok == false) {
       FATAL("加速计的频率有点问题,%d Hz", accel_hz);
     }
@@ -237,7 +236,6 @@ void setStreamProfile()
             }
         } else if (rate_ok && depth_format_ok && res_ok)
         {
-            std::cout<<"depth"<<std::endl;
             if ("Depth" == name)
             {
                 profile_depth = stream_profile;
@@ -325,7 +323,6 @@ public:
 
             if (rate_ok && rgb_format_ok && res_ok)
             {
-                std::cout<<name<<std::endl;
                 if ("Color" == name) {
                     profile_rgb = stream_profile;
                     profile_rgb_set_ = true;

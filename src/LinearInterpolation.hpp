@@ -129,25 +129,23 @@ public:
 
   void publishIMUMessages(const ros::Publisher &imu_pub) {
     while (LinearInterpolation_gyro_ts_.size()) {
-      // Timestamp
+      // 时间戳
       const auto ts = LinearInterpolation_gyro_ts_.front();
       LinearInterpolation_gyro_ts_.pop_front();
       LinearInterpolation_accel_ts_.pop_front();
 
-      // Accel
+      // 加速度
       const auto accel = LinearInterpolation_accel_data_.front();
       LinearInterpolation_accel_data_.pop_front();
 
-      // Gyro
+      // 陀螺仪
       const auto gyro = LinearInterpolation_gyro_data_.front();
       LinearInterpolation_gyro_data_.pop_front();
 
-      // Publish imu messages
       const auto msg = create_imu_msg(ts, gyro, accel);
       imu_pub.publish(msg);
     }
 
-    // Clear
     LinearInterpolation_gyro_ts_.clear();
     LinearInterpolation_gyro_data_.clear();
     LinearInterpolation_accel_ts_.clear();
