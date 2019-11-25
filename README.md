@@ -1,6 +1,7 @@
 # realsense-ros for slam
-Changes have been made to the https://github.com/chutsu/rs4se code to add depth images and RGB image output.
-Output timestamp aligned binocular camera data and fixed frequency imu
+Support t265, d435 and other cameras, as well as multi-camera mode
+
+
 # Install
     cd <PATH TO YOUR CATKIN WS>/src
     git clone https://github.com/wangyuanbiubiubiu/realsense-ros.git

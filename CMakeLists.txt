@@ -28,5 +28,5 @@ SET(DEPS
   ${catkin_LIBRARIES}
 )
 
-ADD_EXECUTABLE(intel_d435i src/intel_d435i.cpp)
+ADD_EXECUTABLE(intel_d435i src/intel_cam.cpp)
 TARGET_LINK_LIBRARIES(intel_d435i ${DEPS})

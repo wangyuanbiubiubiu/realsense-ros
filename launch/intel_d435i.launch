@@ -8,11 +8,13 @@
     <param name="stereo_format" type="str" value="Y8" />
     <param name="depth_format" type="str" value="Z16" />
     <param name="rgb_format" type="str" value="RGB8" />
-    <param name="width" type="int" value="640" />
-    <param name="height" type="int" value="480" />
+    <param name="width" type="int" value="1280" />
+    <param name="height" type="int" value="720" />
     <param name="exposure" type="double" value="10000" />
     <param name="auto_exposure" type="bool" value="true" />
     <param name="auto_white_balance" type="bool" value="true" />
+  <!-- enum sensor_type { T265= 0, D435i = 1,D435 = 2} -->
+    <param name="cam_type" type="int" value="0" />
   </group>
 
   <node pkg="myrealsense"

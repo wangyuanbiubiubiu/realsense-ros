@@ -26,6 +26,7 @@
 
 
 enum image_type { ir= 0, depth = 1 ,rgb = 2};
+enum sensor_type { T265= 0, D435i = 1,D435 = 2};
 
 
 
@@ -63,13 +64,15 @@ static cv::Mat frame2cvmat(const rs2::frame &frame, const int width,
 //计算正确的图片时间戳
 static uint64_t vframe2ts(const rs2::video_frame &vf) {
     // -- 相机数据读出和发送开始的设备时间
-    const auto frame_meta_key = RS2_FRAME_METADATA_FRAME_TIMESTAMP;
-    const auto frame_ts_us = vf.get_frame_metadata(frame_meta_key);
-    const auto frame_ts_ns = static_cast<uint64_t>(frame_ts_us) * 1000;
-    // -- 相机曝光到一半的设备时间
-    const auto sensor_meta_key = RS2_FRAME_METADATA_SENSOR_TIMESTAMP;
-    const auto sensor_ts_us = vf.get_frame_metadata(sensor_meta_key);
-    const auto sensor_ts_ns = static_cast<uint64_t>(sensor_ts_us) * 1000;
+//    const auto frame_meta_key = RS2_FRAME_METADATA_FRAME_TIMESTAMP;
+//    const auto frame_ts_us = vf.get_frame_metadata(frame_meta_key);
+//    const auto frame_ts_ns = static_cast<uint64_t>(frame_ts_us) * 1000;
+//    // -- 相机曝光到一半的设备时间
+//    const auto sensor_meta_key = RS2_FRAME_METADATA_SENSOR_TIMESTAMP;
+//    const auto sensor_ts_us = vf.get_frame_metadata(sensor_meta_key);
+//    const auto sensor_ts_ns = static_cast<uint64_t>(sensor_ts_us) * 1000;
+
+
 //
 //    const auto BACKEND_meta_key = RS2_FRAME_METADATA_BACKEND_TIMESTAMP;
 //    const auto BACKEND_ts_us = vf.get_frame_metadata(BACKEND_meta_key);
@@ -83,7 +86,10 @@ static uint64_t vframe2ts(const rs2::video_frame &vf) {
 //    std::cout.precision(11); //设置输出精度
 
     // -- 相对于捕获开始
-    const auto delay_sensor_to_frame = frame_ts_ns - sensor_ts_ns;
+//    const auto delay_sensor_to_frame = frame_ts_ns - sensor_ts_ns;
+    const auto delay_sensor_to_frame = 0;
+
+
 //    std::cout<<"frame_ts_ns:"<<frame_ts_ns<<std::endl<<"sensor_ts_ns:"<<sensor_ts_ns<<std::endl
 //             <<"frame_ts_ns - sensor_ts_ns:"<<delay_sensor_to_frame<<std::endl
 //             <<"BACKEND_ts_ns:"<<BACKEND_ts_ns<<std::endl<<"ARRIVAL_ts_ns:"<<ARRIVAL_ts_ns<<std::endl
@@ -91,10 +97,10 @@ static uint64_t vframe2ts(const rs2::video_frame &vf) {
     // 图片的正确时间戳
     const auto ts_ms = vf.get_timestamp();//这个是图片的
     const auto ts_ns = str2ts(std::to_string(ts_ms));
-//    const auto rostime_ns = ros::Time::now().sec*1e9 + ros::Time::now().nsec;
+    const auto rostime_ns = ros::Time::now().sec*1e9 + ros::Time::now().nsec;
 //    std::cout<<"ts_ns:"<<ts_ns<<std::endl;
-//    std::cout.precision(0); //设置输出精度
-//    std::cout<<"ros::Time::now():"<<rostime_ns<<std::endl
+//    std::cout.precision(9); //设置输出精度
+//    std::cout<<"ros::Time::now():"<<ros::Time::now().toSec()<<std::endl
 //    <<"ros::Time::now() - ts_ns:"<<rostime_ns - ts_ns<<std::endl;
     const auto ts_corrected_ns = ts_ns - delay_sensor_to_frame;
 

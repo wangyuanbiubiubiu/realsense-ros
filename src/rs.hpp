@@ -7,15 +7,16 @@
 #include "common.hpp"
 
 
-rs2::device rs2_connect() {//连接一下设备
+
+rs2::device_list rs2_connect() {//连接一下设备
   rs2::context ctx;
   rs2::device_list devices = ctx.query_devices();
-  rs2::device device;
+//  rs2::device device;
   if (devices.size() == 0) {
     FATAL("No device connected, please connect a RealSense device");
   }
 
-  return devices[0];
+  return devices;
 }
 
 void rs2_list_sensors(const int device_idx = 0) {
@@ -55,6 +56,82 @@ struct rs_imu_module_config_t {
   int gyro_hz = 400;
   unsigned int fq_size = 10;
 };
+struct rs_t265_imu_module_config_t {
+    int accel_hz = 62;
+    int gyro_hz = 200;
+    unsigned int fq_size = 10;
+};
+class rs_T265_IMU_module_t {
+    const rs2::device &device_;
+    rs2::frame_queue fq_;
+    rs2::sensor sensor_;
+    rs2::stream_profile accel_profile_;//加速度计的配置文件
+    rs2::stream_profile gyro_profile_;//陀螺仪的配置文件
+    rs_t265_imu_module_config_t config_;
+
+public:
+    rs_T265_IMU_module_t(const rs2::device &device)
+            : device_{device}, fq_{config_.fq_size} {
+        setup(config_.accel_hz, config_.gyro_hz);
+    }
+
+
+    ~rs_T265_IMU_module_t() {
+        sensor_.stop();
+        sensor_.close();
+    }
+
+
+//分别按照给定的加速度计和陀螺仪的频率来接收话题
+    void setStreamProfiles(const int accel_hz, const int gyro_hz) {
+        bool accel_ok = false;
+        bool gyro_ok = false;
+
+        // Go through Stream profiles
+        const auto stream_profiles = sensor_.get_stream_profiles();
+        for (const auto &stream_profile : stream_profiles) {
+            const auto stream_name = stream_profile.stream_name();//当前消息流
+            const auto stream_rate = stream_profile.fps();
+
+            std::cout<<stream_name<<std::endl;
+            if (stream_name == "Accel" && stream_rate == accel_hz) {
+                accel_profile_ = stream_profile;
+                accel_ok = true;
+            }
+
+            if (stream_name == "Gyro" && stream_rate == gyro_hz) {
+                gyro_profile_ = stream_profile;
+                gyro_ok = true;
+            }
+        }
+
+        if (accel_ok == false) {
+            FATAL("加速计的频率有点问题,%d Hz", accel_hz);
+        }
+        if (gyro_ok == false) {
+            FATAL("陀螺仪的频率有点问题,%d Hz", gyro_hz);
+        }
+    }
+
+    void setup(const int accel_hz = 62, const int gyro_hz = 200) {//设置一下消息流
+
+        if (rs2_get_sensors(device_, "Tracking Module", sensor_) != 0) {
+            FATAL("This RealSense device does not have a [Tracking Module]");
+        }
+
+        //分别按照给定的加速度计和陀螺仪的频率来接收话题
+        setStreamProfiles(accel_hz, gyro_hz);
+
+
+        //启动这两个
+        sensor_.open({accel_profile_, gyro_profile_});
+        std::cout<<"open"<<std::endl;
+        sensor_.start(fq_);
+    }
+
+    rs2::frame waitForFrame() { return fq_.wait_for_frame(); }//等待imu的消息
+};
+
 
 class rs_IMU_module_t {
   const rs2::device &device_;
@@ -159,6 +236,141 @@ struct rs_cam_module_config_t {
   bool auto_white_balance = true;
 
 };
+
+struct rs_T265_cam_module_config_t {
+    bool global_time = true;
+    int sync_size = 30;
+    bool enable_emitter = false;
+
+    int frame_rate = 30;
+    std::string stereo_format = "Y8";
+
+    int width = 848;
+    int height = 800;
+    double exposure = 0.0f;//曝光时间
+    bool auto_exposure = true;
+    bool auto_white_balance = true;
+
+};
+
+class rs_T265_cam_module_t {
+    const rs2::device &device_;
+//    rs2::syncer sync_;
+    rs2::frame_queue sync_;
+
+    rs2::sensor t265_module_sensor_;
+
+    //
+    rs2::stream_profile profile_fisheye1;
+    rs2::stream_profile profile_fisheye2;
+    rs2::stream_profile accel_profile_;
+    rs2::stream_profile gyro_profile_;
+    bool profile_fisheye1_set_ = false;
+    bool profile_fisheye2_set_ = false;
+    bool accel_ok =false;
+    bool gyro_ok =false;
+    rs_T265_cam_module_config_t config_;
+
+public:
+    rs_T265_cam_module_t(const rs2::device &device)
+            : device_{device}, sync_{(unsigned int )config_.sync_size} {
+        setup();
+    }
+
+    rs_T265_cam_module_t(const rs2::device &device,
+                         const rs_T265_cam_module_config_t &config)
+            : device_{device}, sync_{(unsigned int )config.sync_size}, config_{config} {
+        setup();
+    }
+
+    ~rs_T265_cam_module_t() {
+        t265_module_sensor_.stop();
+        t265_module_sensor_.close();
+    }
+
+    void setStreamProfile()
+    {
+        const auto stream_profiles = t265_module_sensor_.get_stream_profiles();
+        const int accel_hz = 62, gyro_hz = 200;
+        for (const auto &stream_profile : stream_profiles)
+        {
+            const auto name = stream_profile.stream_name();
+            const auto rate = stream_profile.fps();
+
+
+            if(name == "Accel" && rate == accel_hz)
+            {
+                accel_profile_ = stream_profile;
+                accel_ok = true;
+                continue;
+            }
+            if (name == "Gyro" && rate == gyro_hz) {
+                gyro_profile_ = stream_profile;
+                gyro_ok = true;
+                continue;
+            }
+
+
+            const auto format = rs2_format_to_string(stream_profile.format());
+            const auto vp = stream_profile.as<rs2::video_stream_profile>();
+            const int width = vp.width();
+            const int height = vp.height();
+
+            const bool rate_ok = (config_.frame_rate == rate);
+            const bool stereo_format_ok = (config_.stereo_format == format);
+
+            const bool width_ok = (config_.width == width);
+            const bool height_ok = (config_.height == height);
+            const bool res_ok = (width_ok && height_ok);
+
+            if (rate_ok && stereo_format_ok && res_ok)
+            {
+                if ("Fisheye 1" == name)
+                {
+                    profile_fisheye1 = stream_profile;
+                    profile_fisheye1_set_ = true;
+                } else if ("Fisheye 2" == name)
+                {
+                    profile_fisheye2 = stream_profile;
+                    profile_fisheye2_set_ = true;
+                }
+            }
+        }
+
+        if (accel_ok == false) {
+            FATAL("加速计的频率有点问题,%d Hz", accel_hz);
+        }
+        if (gyro_ok == false) {
+            FATAL("陀螺仪的频率有点问题,%d Hz", gyro_hz);
+        }
+
+        if (profile_fisheye1_set_ == false && profile_fisheye2_set_ == false)
+        {
+            FATAL("Failed to get stereo module stream profile!");
+        }
+
+    }
+
+    void setup()
+    {
+        if (rs2_get_sensors(device_, "Tracking Module", t265_module_sensor_) != 0) {
+            FATAL("This RealSense device does not have a [Tracking Module]");
+        }
+        //设置一下双目的参数吧
+        setStreamProfile();
+
+//        t265_module_sensor_.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED, config_.global_time);
+        t265_module_sensor_.set_option(RS2_OPTION_ENABLE_AUTO_EXPOSURE, config_.auto_exposure);
+//        t265_module_sensor_.set_option(RS2_OPTION_EXPOSURE, config_.exposure);
+
+        t265_module_sensor_.open({profile_fisheye1, profile_fisheye2,accel_profile_, gyro_profile_});
+        t265_module_sensor_.start(sync_);
+
+    }
+
+    rs2::frame waitForFrame() { return sync_.wait_for_frame(); }
+};
+
 
 class rs_stereo_module_t {
   const rs2::device &device_;
